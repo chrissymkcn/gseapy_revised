@@ -31,6 +31,8 @@ class GSEA(GSEAbase):
         outdir: Optional[str] = None,
         min_size: int = 15,
         max_size: int = 500,
+        pheno_pos: str = 'pos',  # add option to specify positive phenotype 
+        pheno_neg: str = 'neg', # add option to specify negative phenotype
         permutation_num: int = 1000,
         weight: float = 1.0,
         permutation_type: str = "phenotype",
@@ -48,6 +50,8 @@ class GSEA(GSEAbase):
             outdir=outdir,
             gene_sets=gene_sets,
             module="gsea",
+            pheno_pos="pos",
+            pheno_neg="neg",
             threads=threads,
             verbose=verbose,
         )
@@ -57,7 +61,7 @@ class GSEA(GSEAbase):
         self.method = method
         self.min_size = min_size
         self.max_size = max_size
-        self.permutation_num = int(permutation_num) if int(permutation_num) > 0 else 0
+        self.permutation_num = int(permutation_num) if permutation_num else None
         self.weight = weight
         self.ascending = ascending
         self.figsize = figsize
@@ -66,8 +70,8 @@ class GSEA(GSEAbase):
         self.seed = seed
         self.ranking = None
         self._noplot = no_plot
-        self.pheno_pos = "pos"
-        self.pheno_neg = "neg"
+        self.pheno_pos = pheno_pos
+        self.pheno_neg = pheno_neg
 
     def load_data(self, cls_vec: List[str]) -> Tuple[pd.DataFrame, Dict]:
         """pre-processed the data frame.new filtering methods will be implement here."""
@@ -221,20 +225,21 @@ class GSEA(GSEAbase):
                 if v < 3:
                     raise Exception(f"Number of {c}: {v}, it must be >= 3!")
                 s.append(c)
-            self.pheno_pos = s[0]
-            self.pheno_neg = s[1]
+            # self.pheno_pos = s[0]
+            # self.pheno_neg = s[1]
             # n_pos = class_values[pos]
             # n_neg = class_values[neg]
-            return
+            return list(self.classes.values())
         else:
             pos, neg, cls_vector = gsea_cls_parser(self.classes)
-            self.pheno_pos = pos
-            self.pheno_neg = neg
+            # self.pheno_pos = pos
+            # self.pheno_neg = neg
             return cls_vector
 
     # @profile
     def run(self):
         """GSEA main procedure"""
+        print(self.method)
         m = self.method.lower()
         if m in ["signal_to_noise", "s2n"]:
             method = Metric.Signal2Noise
@@ -366,7 +371,7 @@ class Prerank(GSEAbase):
         self.pheno_neg = pheno_neg
         self.min_size = min_size
         self.max_size = max_size
-        self.permutation_num = int(permutation_num) if int(permutation_num) > 0 else 0
+        self.permutation_num = int(permutation_num) if permutation_num else None
         self.weight = weight
         self.ascending = ascending
         self.figsize = figsize
