@@ -86,11 +86,11 @@ class SciPalette:
 
     def igv(self):
         # Color palette inspired by IGV
-        return self._db[self.igv.__name__]
+        self._db[self.igv.__name__]
 
     def igv_alternating(self):
         # Color palette inspired by IGV
-        return self._db[self.igv_alternating.__name__]
+        self._db[self.igv_alternating.__name__]
 
     def locuszoom(self):
         # Color palette inspired by LocusZoom

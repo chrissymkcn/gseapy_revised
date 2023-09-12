@@ -8,9 +8,8 @@ from .__main__ import __version__
 from .biomart import Biomart
 from .enrichr import Enrichr
 from .gsea import GSEA, Prerank, Replot, SingleSampleGSEA
-from .msigdb import Msigdb
 from .parser import get_library, get_library_name, read_gmt
-from .plot import barplot, dotplot, enrichment_map, gseaplot, gseaplot2, heatmap
+from .plot import barplot, dotplot, enrichment_map, gseaplot, heatmap, ringplot
 
 
 def gsea(
@@ -23,6 +22,8 @@ def gsea(
     permutation_num: int = 1000,
     weighted_score_type: float = 1.0,
     permutation_type: str = "phenotype",
+    pheno_pos: str='pos', 
+    pheno_neg: str='neg',
     method: str = "signal_to_noise",
     ascending: bool = False,
     threads: int = 4,
@@ -129,24 +130,26 @@ def gsea(
         threads = kwarg["processes"]
 
     gs = GSEA(
-        data,
-        gene_sets,
-        cls,
-        outdir,
-        min_size,
-        max_size,
-        permutation_num,
-        weighted_score_type,
-        permutation_type,
-        method,
-        ascending,
-        threads,
-        figsize,
-        format,
-        graph_num,
-        no_plot,
-        seed,
-        verbose,
+        data=data,
+        gene_sets=gene_sets,
+        classes=cls,
+        outdir=outdir,
+        min_size=min_size,
+        max_size=max_size,
+        permutation_num=permutation_num,
+        pheno_pos=pheno_pos,  # FIX: provide the option to specify phenotype names
+        pheno_neg=pheno_neg,
+        weight=weighted_score_type,
+        permutation_type=permutation_type,
+        method=method,
+        ascending=ascending,
+        threads=threads,
+        figsize=figsize,
+        format=format,
+        graph_num=graph_num,
+        no_plot=no_plot,
+        seed=seed,
+        verbose=verbose,
     )
     gs.run()
 
@@ -256,26 +259,8 @@ def ssgsea(
     """
     if "processes" in kwargs:
         warnings.warn("processes is deprecated; use threads", DeprecationWarning, 2)
-        threads = kwargs["processes"]
-    ss = SingleSampleGSEA(
-        data=data,
-        gene_sets=gene_sets,
-        outdir=outdir,
-        sample_norm_method=sample_norm_method,
-        correl_norm_type=correl_norm_type,
-        min_size=min_size,
-        max_size=max_size,
-        permutation_num=permutation_num,
-        weight=weighted_score_type,
-        ascending=ascending,
-        threads=threads,
-        figsize=figsize,
-        format=format,
-        graph_num=graph_num,
-        no_plot=no_plot,
-        seed=seed,
-        verbose=verbose,
-    )
+        kwargs["threads"] = kwargs["processes"]
+    ss = SingleSampleGSEA(data=data, gene_sets=gene_sets, **kwargs)
     ss.run()
     return ss
 
@@ -356,23 +341,23 @@ def prerank(
         warnings.warn("processes is deprecated; use threads", DeprecationWarning, 2)
         threads = kwarg["processes"]
     pre = Prerank(
-        rnk,
-        gene_sets,
-        outdir,
-        pheno_pos,
-        pheno_neg,
-        min_size,
-        max_size,
-        permutation_num,
-        weighted_score_type,
-        ascending,
-        threads,
-        figsize,
-        format,
-        graph_num,
-        no_plot,
-        seed,
-        verbose,
+        rnk=rnk,
+        gene_sets=gene_sets,
+        outdir=outdir,
+        pheno_pos=pheno_pos,
+        pheno_neg=pheno_neg,
+        min_size=min_size,
+        max_size=max_size,
+        permutation_num=permutation_num,
+        weight=weighted_score_type,
+        ascending=ascending,
+        threads=threads,
+        figsize=figsize,
+        format=format,
+        graph_num=graph_num,
+        no_plot=no_plot,
+        seed=seed,
+        verbose=verbose,
     )
     pre.run()
     return pre
@@ -424,7 +409,7 @@ def enrichr(
     gene_sets: Union[List[str], str, Dict[str, str]],
     organism: str = "human",
     outdir: Optional[str] = None,
-    background: Union[List[str], int, str] = None,
+    background: Union[List[str], int, str] = "hsapiens_gene_ensembl",
     cutoff: float = 0.05,
     format: str = "pdf",
     figsize: Tuple[float, float] = (6.5, 6),
@@ -633,9 +618,9 @@ __all__ = [
     "dotplot",
     "barplot",
     "enrichment_map",
+    "ringplot",
     "heatmap",
     "gseaplot",
-    "gseaplot2",
     "replot",
     "prerank",
     "gsea",
@@ -648,7 +633,6 @@ __all__ = [
     "SingleSampleGSEA",
     "Enrichr",
     "Biomart",
-    "Msigdb",
     "get_library",
     "get_library_name",
     "read_gmt",

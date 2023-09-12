@@ -11,7 +11,7 @@ import sys
 # or args = argparser.parse_args() will throw bugs!!!
 
 
-__version__ = "1.0.6"
+__version__ = "1.0.4"
 
 
 def main():
@@ -759,13 +759,9 @@ def add_enrichr_parser(subparsers):
         "--background",
         action="store",
         dest="bg",
-        default=None,
-        metavar="BG",
-        help="Choose background from one of the following. \n"
-        + "(1) A BioMart Dataset name, e.g. 'hsapiens_gene_ensembl' . \n"
-        + "(2) A total gene number, e.g. 20000. Only works for GMT file input. \n"
-        + "(3) A text file contains the background gene list (one gene per row). Gene identifier should be the same to your input (-i). \n"
-        + "(4) Default: None. It means all genes in the (-g) input as the background.",
+        default="hsapiens_gene_ensembl",
+        metavar="BGNUM",
+        help="BioMart Dataset name or Background total genes number. Default: None",
     )
     enrichr_opt.add_argument(
         "-t",

@@ -4,72 +4,15 @@
 import json
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from tempfile import TemporaryDirectory
+from typing import Dict, Iterable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
+import requests
 
-from gseapy.plot import GSEAPlot, TracePlot, gseaplot, heatmap
+from gseapy.plot import gseaplot, heatmap
 from gseapy.utils import DEFAULT_CACHE_PATH, log_init, mkdirs, retry
-
-
-class GMT(dict):
-    def __init__(
-        self,
-        mapping: Optional[Dict[str, str]] = None,
-        description: Optional[str] = None,
-    ):
-        """
-        wrapper of dict. this helps merge multiple dict into one
-        the original key will changed to new key with suffix '__{description}'
-        """
-        if description is None:
-            description = ""
-        self.description = description
-        _mapping = {}
-        if mapping is not None:
-            for key, value in mapping.items():
-                k = key + "__" + self.description
-                _mapping[k] = value
-        super().__init__(_mapping)
-
-    def apply(self, func):
-        """apply function in place"""
-        for key, value in self.items():
-            self[key] = func(value)
-
-    def is_empty(self):
-        return len(self) == 0
-
-    def write(self, ofname: str):
-        """
-        write gmt file to disk
-        """
-        with open(ofname, "w") as out:
-            for key, value in self.items():
-                collections = key.split("__")
-                collections += list(value)
-                out.write("\t".join(collections) + "\n")
-
-    def _read(path):
-        mapping = {}
-        with open(path, "r") as inp:
-            for line in inp:
-                items = line.strip().split("\t")
-                key = items[0]
-                if items[1] != "":
-                    key += "__" + items[1]
-                mapping[key] = items[2:]
-        return mapping
-
-    @classmethod
-    def read(cls, paths):
-        paths = paths.strip().split(",")
-        # mapping
-        mapping = {}
-        for path in paths:
-            mapping.update(cls._read(path))
-        return cls(mapping)
 
 
 class GSEAbase(object):
@@ -80,6 +23,8 @@ class GSEAbase(object):
         outdir: Optional[str] = None,
         gene_sets: Union[List[str], str, Dict[str, str]] = "KEGG_2016",
         module: str = "base",
+        pheno_pos: str = 'pos',
+        pheno_neg: str = 'neg',
         threads: int = 1,
         enrichr_url: str = "http://maayanlab.cloud",
         verbose: bool = False,
@@ -88,14 +33,15 @@ class GSEAbase(object):
         self.gene_sets = gene_sets
         self.fdr = 0.05
         self.module = module
+        self.results = None
         self.res2d = None
         self.ranking = None
         self.ascending = False
         self.verbose = verbose
         self._threads = threads
         self.ENRICHR_URL = enrichr_url
-        self.pheno_pos = ""
-        self.pheno_neg = ""
+        self.pheno_pos = pheno_pos
+        self.pheno_neg = pheno_neg
         self.permutation_num = 0
         self._LIBRARY_LIST_URL = "https://maayanlab.cloud/speedrichr/api/listlibs"
 
@@ -130,6 +76,8 @@ class GSEAbase(object):
         """set cpu numbers to be used"""
 
         cpu_num = os.cpu_count() - 1
+        if any([type(self._threads)==str, self._threads is None]):
+            self._threads = 1
         if self._threads > cpu_num:
             cores = cpu_num
         elif self._threads < 1:
@@ -263,7 +211,6 @@ class GSEAbase(object):
         genesets_dict = self.load_gmt_only(gmt)
 
         subsets = list(genesets_dict.keys())
-        entry1st = genesets_dict[subsets[0]]
         gene_dict = {g: i for i, g in enumerate(gene_list)}
         for subset in subsets:
             subset_list = set(genesets_dict.get(subset))  # remove duplicates
@@ -290,14 +237,10 @@ class GSEAbase(object):
                 + "Hint 3: Gene symbols curated in Enrichr web services are all upcases.\n"
             )
             self._logger.error(msg)
-            dict_head = "{ %s: [%s]}" % (subsets[0], ", ".join(entry1st))
+            dict_head = "{ %s: [%s]}" % (subsets[0], genesets_dict[subsets[0]])
             self._logger.error(
                 "The first entry of your gene_sets (gmt) look like this : %s"
                 % dict_head
-            )
-            self._logger.error(
-                "The first 5 genes look like this : [ %s ]"
-                % (", ".join(list(gene_list)[:5]))
             )
             raise LookupError(msg)
 
@@ -406,21 +349,17 @@ class GSEAbase(object):
                 continue
             if i >= self.graph_num:  # already sorted by abs(NES) in descending order
                 break
-            # if self.res2d["Name"].nunique() > 1 and hasattr(
-            #     self, "_metric_dict"
-            # ):  # self.module != "ssgsea":
-            #     key = record["Name"]
-            #     rank_metric = metric[key]
-            #     hit = self._results[key][record["Term"]]["hits"]
-            #     RES = self._results[key][record["Term"]]["RES"]
-            # else:
-            #     rank_metric = metric[self.module]
-            #     hit = self._results[record["Term"]]["hits"]
-            #     RES = self._results[record["Term"]]["RES"]
-            key = record["Name"]
-            rank_metric = metric[key]
-            hit = self._results[key][record["Term"]]["hits"]
-            RES = self._results[key][record["Term"]]["RES"]
+            if self.res2d["Name"].nunique() > 1 and hasattr(
+                self, "_metric_dict"
+            ):  # self.module != "ssgsea":
+                key = record["Name"]
+                rank_metric = metric[key]
+                hit = self.results[key][record["Term"]]["hits"]
+                RES = self.results[key][record["Term"]]["RES"]
+            else:
+                rank_metric = metric[self.module]
+                hit = self.results[record["Term"]]["hits"]
+                RES = self.results[record["Term"]]["RES"]
 
             outdir = os.path.join(self.outdir, record["Name"])
             mkdirs(outdir)
@@ -444,13 +383,13 @@ class GSEAbase(object):
             if self.permutation_num > 0:
                 # skip plotting when nperm=0
                 gseaplot(
+                    rank_metric=rank_metric,
                     term=record["Term"].split("__")[-1],
                     hits=hit,
                     nes=record["NES"],
                     pval=record["NOM p-val"],
                     fdr=record["FDR q-val"],
                     RES=RES,
-                    rank_metric=rank_metric,
                     pheno_pos=self.pheno_pos,
                     pheno_neg=self.pheno_neg,
                     figsize=self.figsize,
@@ -564,15 +503,13 @@ class GSEAbase(object):
             self._metric_dict = {self.module: self.module}
 
         res_df = self._to_df(gsea_summary, gmt, metric)
-        self._results = {}
+        self.results = {}
         # save dict
-        # if res_df["name"].nunique() >= 2:
-        #     for name, dd in res_df.groupby(["name"]):
-        #         self._results[name] = dd.set_index("term").to_dict(orient="index")
-        # else:
-        #     self._results = res_df.set_index("term").to_dict(orient="index")
-        for name, dd in res_df.groupby("name"):
-            self._results[name] = dd.set_index("term").to_dict(orient="index")
+        if res_df["name"].nunique() >= 2:
+            for name, dd in res_df.groupby(["name"]):
+                self.results[name] = dd.set_index("term").to_dict(orient="index")
+        else:
+            self.results = res_df.set_index("term").to_dict(orient="index")
         # trim
         res_df.rename(
             columns={
@@ -629,16 +566,6 @@ class GSEAbase(object):
         if not self._noplot:
             self._plotting(metric)
         return
-
-    @property
-    def results(self):
-        """
-        compatible to old style
-        """
-        keys = list(self._results.keys())
-        if len(keys) == 1:
-            return self._results[keys[0]]
-        return self._results
 
     def enrichment_score(
         self,
@@ -732,65 +659,3 @@ class GSEAbase(object):
         es, esnull, RES = es_vec[-1], es_vec[:-1], RES[-1, :]
 
         return es, esnull, hit_ind, RES
-
-    def plot(
-        self,
-        terms: Union[str, List[str]],
-        colors: Optional[Union[str, List[str]]] = None,
-        legend_kws: Optional[Dict[str, Any]] = None,
-        figsize: Tuple[float, float] = (4, 5),
-        show_ranking: bool = True,
-        ofname: Optional[str] = None,
-    ):
-        """
-        terms: str, list.  terms/pathways to show
-        colors: str, list. list of colors for each term/pathway
-        legend_kws: kwargs to pass to ax.legend. e.g. `loc`, `bbox_to_achor`.
-        ofname: savefig
-        """
-        # if hasattr(self, "results"):
-        if self.module == "ssgsea":
-            raise NotImplementedError("not for ssgsea")
-        keys = list(self._results.keys())
-        if len(keys) > 1:
-            raise NotImplementedError("Multiple Dataset input No supported yet!")
-
-        ranking = self.ranking if show_ranking else None
-        if isinstance(terms, str):
-            gsdict = self.results[terms]
-            g = GSEAPlot(
-                term=terms,
-                tag=gsdict["hits"],
-                rank_metric=ranking,
-                runes=gsdict["RES"],
-                nes=gsdict["nes"],
-                pval=gsdict["pval"],
-                fdr=gsdict["fdr"],
-                ofname=ofname,
-                pheno_pos=self.pheno_pos,
-                pheno_neg=self.pheno_neg,
-                color=colors,
-                figsize=figsize,
-            )
-            g.add_axes()
-            g.savefig()
-            return g.fig
-
-        elif hasattr(terms, "__len__"):  # means iterable
-            terms = list(terms)
-            tags = [self.results[t]["hits"] for t in terms]
-            runes = [self.results[t]["RES"] for t in terms]
-            t = TracePlot(
-                terms=terms,
-                tags=tags,
-                runes=runes,
-                rank_metric=ranking,
-                colors=colors,
-                legend_kws=legend_kws,
-                ofname=ofname,
-            )
-            t.add_axes()
-            t.savefig(ofname)
-            return t.fig
-        else:
-            print("not supported input: terms")
