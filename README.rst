@@ -30,6 +30,7 @@ GSEApy: Gene Set Enrichment Analysis in Python.
 
 
 **Release notes** : https://github.com/zqfang/GSEApy/releases
+
 **THIS IS A REVISED VERSION OF GSEAPY**: allow user defined class label as the positive and negative groups.
 `Tutorial for scRNA-seq datasets <https://gseapy.readthedocs.io/en/latest/singlecell_example.html#>`_
 
