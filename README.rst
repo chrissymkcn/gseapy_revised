@@ -31,10 +31,9 @@ GSEApy: Gene Set Enrichment Analysis in Python.
 
 **Release notes** : https://github.com/zqfang/GSEApy/releases
 
-THIS IS A REVISED VERSION OF GSEAPY: allow user defined class label as the positive and negative groups.
-`Tutorial for scRNA-seq datasets <https://gseapy.readthedocs.io/en/latest/singlecell_example.html#>`_
-
-`Tutorial for general usage <https://gseapy.readthedocs.io/en/latest/gseapy_example.html>`_
+THIS IS A REVISED VERSION OF GSEAPY
+------------------------------------
+Added feature: allow user defined class label as the positive and negative groups.
 
 
 Citation
@@ -48,6 +47,10 @@ Citation
 
 GSEApy is a Python/Rust implementation for **GSEA** and wrapper for **Enrichr**.
 --------------------------------------------------------------------------------------------
+
+`Tutorial for scRNA-seq datasets <https://gseapy.readthedocs.io/en/latest/singlecell_example.html#>`_
+
+`Tutorial for general usage <https://gseapy.readthedocs.io/en/latest/gseapy_example.html>`_
 
 GSEApy can be used for **RNA-seq, ChIP-seq, Microarray** data. It can be used for convenient GO enrichment and to produce **publication quality figures** in python.
 
